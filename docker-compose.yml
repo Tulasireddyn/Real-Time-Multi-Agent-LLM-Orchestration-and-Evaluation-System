@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/agent_db
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      - db
+      - ollama
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=agent_db
+    ports:
+      - "5432:5432"
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  worker:
+    build: .
+    command: python -m worker.main
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/agent_db
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      - db
+      - ollama
+
+  logs:
+    image: amir20/dozzle # Lightweight log viewer
+    ports:
+      - "8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  ollama_data:
+
+volumes:
+  ollama_data:
