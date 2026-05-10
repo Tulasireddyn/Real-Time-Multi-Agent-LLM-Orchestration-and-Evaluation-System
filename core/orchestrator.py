@@ -24,14 +24,21 @@ class MasterOrchestrator:
     def register_agent(self, agent: BaseAgent):
         self.agents[agent.agent_type] = agent
 
-    async def run(self, query: str, job_id: str):
+    async def run(self, query: str, job_id: str, event_callback: Optional[callable] = None):
         context = SharedContext(job_id=job_id, original_query=query)
         context.add_message("user", query, AgentType.ORCHESTRATOR)
+        
+        async def emit(event: TraceEvent):
+            if event_callback:
+                await event_callback(event)
         
         # 1. Routing Loop
         current_agent_type = None
         visited_count = {}
-        trace = [TraceEvent(job_id=job_id, agent_id=AgentType.ORCHESTRATOR, event_type="start", payload={"query": query})]
+        
+        start_event = TraceEvent(job_id=job_id, agent_id=AgentType.ORCHESTRATOR, event_type="start", payload={"query": query})
+        trace = [start_event]
+        await emit(start_event)
         
         while current_agent_type != AgentType.SYNTHESIS:
             # Decision reasoning
@@ -56,12 +63,14 @@ class MasterOrchestrator:
             budget = decision.get("context_budget", 2000)
             
             # Log decision trace
-            trace.append(TraceEvent(
+            dec_event = TraceEvent(
                 job_id=job_id, 
                 agent_id=AgentType.ORCHESTRATOR, 
                 event_type="decision", 
                 payload={"next_agent": next_agent_type, "reasoning": reasoning}
-            ))
+            )
+            trace.append(dec_event)
+            await emit(dec_event)
             
             print(f"[Orchestrator] Routing to {next_agent_type} because: {reasoning}")
             
@@ -81,7 +90,9 @@ class MasterOrchestrator:
                 break
                 
             # Log handoff
-            trace.append(TraceEvent(job_id=job_id, agent_id=next_agent_type, event_type="handoff", payload={}))
+            ho_event = TraceEvent(job_id=job_id, agent_id=next_agent_type, event_type="handoff", payload={})
+            trace.append(ho_event)
+            await emit(ho_event)
             
             await agent.execute(context)
             
@@ -93,7 +104,9 @@ class MasterOrchestrator:
                 break
 
         # Record final trace
-        trace.append(TraceEvent(job_id=job_id, agent_id=AgentType.ORCHESTRATOR, event_type="completed", payload={}))
+        comp_event = TraceEvent(job_id=job_id, agent_id=AgentType.ORCHESTRATOR, event_type="completed", payload={})
+        trace.append(comp_event)
+        await emit(comp_event)
         
         # Save trace to context metadata for retrieval
         context.metadata["execution_trace"] = [t.dict() for t in trace]

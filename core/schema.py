@@ -74,3 +74,31 @@ class TraceEvent(BaseModel):
     agent_id: AgentType
     event_type: str # 'decision', 'call', 'result', 'handoff'
     payload: Dict[str, Any]
+
+# API Models
+class APIErrorResponse(BaseModel):
+    error_code: str
+    message: str
+    job_id: Optional[str] = None
+
+class EvalDimension(BaseModel):
+    score: float
+    justification: str
+
+class EvalCategorySummary(BaseModel):
+    category: str
+    avg_score: float
+    dimensions: Dict[str, float]
+
+class EvalSummaryResponse(BaseModel):
+    total_runs: int
+    overall_avg_score: float
+    breakdown: List[EvalCategorySummary]
+    latest_run_id: Optional[int] = None
+
+class PromptReviewRequest(BaseModel):
+    version_id: int
+    action: str  # 'approve' or 'reject'
+
+class QuerySubmission(BaseModel):
+    query: str
